@@ -9,29 +9,36 @@ from threading import Event, Thread
 
 import discord
 import trio
+import urllib3
 from rich.logging import RichHandler
 
 import constants
 from pypush import apns, ids, imessage
 
 # Setup logging
-logging.basicConfig(
-    level=logging.NOTSET, format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
-)
-logging.getLogger("urllib3").setLevel(logging.WARNING)
-logging.getLogger("py.warnings").setLevel(logging.ERROR)  # Ignore warnings from urllib3
-logging.getLogger("asyncio").setLevel(logging.WARNING)
-logging.getLogger("jelly").setLevel(logging.INFO)
-logging.getLogger("nac").setLevel(logging.INFO)
-logging.getLogger("apns").setLevel(logging.DEBUG)
-logging.getLogger("albert").setLevel(logging.INFO)
-logging.getLogger("ids").setLevel(logging.DEBUG)
-logging.getLogger("bags").setLevel(logging.INFO)
-logging.getLogger("imessage").setLevel(logging.DEBUG)
-logging.getLogger("pypush").setLevel(logging.DEBUG)
-logging.getLogger("discord").setLevel(logging.INFO)
+urllib3.disable_warnings(
+    urllib3.exceptions.InsecureRequestWarning
+)  # Ignore warning from urllib3
+if constants.LOGGING:
+    logging.basicConfig(
+        level=logging.NOTSET,
+        format="%(message)s",
+        datefmt="[%X]",
+        handlers=[RichHandler()],
+    )
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("asyncio").setLevel(logging.WARNING)
+    logging.getLogger("jelly").setLevel(logging.INFO)
+    logging.getLogger("nac").setLevel(logging.INFO)
+    logging.getLogger("apns").setLevel(logging.DEBUG)
+    logging.getLogger("albert").setLevel(logging.INFO)
+    logging.getLogger("ids").setLevel(logging.DEBUG)
+    logging.getLogger("bags").setLevel(logging.INFO)
+    logging.getLogger("imessage").setLevel(logging.DEBUG)
+    logging.getLogger("pypush").setLevel(logging.DEBUG)
+    logging.getLogger("discord").setLevel(logging.INFO)
 
-logging.captureWarnings(True)
+    logging.captureWarnings(True)
 
 
 # Try load config.json
@@ -39,6 +46,7 @@ try:
     with open("config.json", "r") as f:
         CONFIG = json.load(f)
 except FileNotFoundError:
+    print("config.json not found, you'll have to login again.")
     CONFIG = {}
 
 # Initialize Discord client
@@ -55,7 +63,7 @@ disc_client = discord.Client(intents=intents)
 # Main iMessage function
 async def iMessageMain(msg: str):
     """
-    Initialize iMessage connection using config.json, and sends a message to hardcoded iMessage group chat.
+    Initialize iMessage connection using config.json, and sends a message to iMessage group chat.
     Group chat is hardcoded in constants.py
 
     msg: Message to send to iMessage group chat. (str)
@@ -103,7 +111,7 @@ async def iMessageMain(msg: str):
         with open("config.json", "w") as f:
             json.dump(CONFIG, f, indent=4)
 
-        print(f"Authenticating as: {user}.")
+        print(f"Authenticating iMessage with: {user.current_handle}.")
         iMessageBot = imessage.iMessageUser(conn, user)
 
         iMessage = imessage.iMessage.create(
@@ -152,7 +160,7 @@ def run_trio_in_thread(
 @disc_client.event
 async def on_ready():
     print("Logged into Discord as {0.user}".format(disc_client))
-    print("Awaiting messages...")
+    print("Awaiting messages...\n")
 
 
 @disc_client.event
@@ -163,15 +171,21 @@ async def on_message(message):
     if message.channel.name == constants.DESIGN_CHANNEL and constants.DESIGN_ROLE in [
         x.name for x in message.role_mentions
     ]:
+        print("Message received.")
         await message.add_reaction("👀")
 
+        print(
+            f"Processing message from {message.author.display_name}:\n{textwrap.indent(text=message.clean_content, prefix='    ')}"
+        )
         iMessageText = (
             f"Discord ping from {message.author.display_name}:\n{message.clean_content}"
         )
-        print(
-            f"Processing message:\n{textwrap.indent(text=iMessageText, prefix='    ')}"
-        )
-
+        if message.attachments:
+            print("Including attachments in iMessage.")
+            iMessageText += "\n\nAttachments:"
+            for attachment in message.attachments:
+                iMessageText += f"\n{attachment.url}"
+        
         result_queue = queue.Queue()
         thread, done_event = run_trio_in_thread(
             iMessageMain, result_queue, iMessageText
@@ -193,7 +207,12 @@ async def on_message(message):
             )
 
         print("Done.\n")
+        print("Awaiting messages...\n")
 
 
 if __name__ == "__main__":
-    disc_client.run(constants.BOT_TOKEN)
+    disc_client.run(
+        token=constants.BOT_TOKEN,
+        reconnect=True,
+        log_handler=RichHandler() if constants.LOGGING else None,
+    )
