@@ -1,8 +1,10 @@
 import asyncio
 import json
 import logging
+import queue
+import typing
 from base64 import b64decode, b64encode
-from threading import Thread
+from threading import Event, Thread
 
 import discord
 import trio
@@ -11,10 +13,10 @@ from rich.logging import RichHandler
 import constants
 from pypush import apns, ids, imessage
 
+# Setup logging
 logging.basicConfig(
     level=logging.NOTSET, format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
 )
-
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("py.warnings").setLevel(logging.ERROR)  # Ignore warnings from urllib3
 logging.getLogger("asyncio").setLevel(logging.WARNING)
@@ -38,11 +40,25 @@ try:
 except FileNotFoundError:
     CONFIG = {}
 
-intents = discord.Intents.default()
+# Initialize Discord client
+intents = discord.Intents(
+    guilds=True,
+    members=True,
+    reactions=True,
+    messages=True,
+    message_content=True,
+)
 disc_client = discord.Client(intents=intents)
 
 
-async def iMessageMain():
+# Main iMessage function
+async def iMessageMain(msg: str):
+    """
+    Initialize iMessage connection using config.json, and sends a message to hardcoded iMessage group chat.
+    Group chat is hardcoded in constants.py
+
+    msg: Message to send to iMessage group chat. (str)
+    """
     token = CONFIG.get("push", {}).get("token")
     if token is not None:
         token = b64decode(token)
@@ -86,28 +102,54 @@ async def iMessageMain():
         with open("config.json", "w") as f:
             json.dump(CONFIG, f, indent=4)
 
-        im = imessage.iMessageUser(conn, user)
 
-        return im
+        print(f"Authenticating as: {user}.")
+        iMessageBot = imessage.iMessageUser(conn, user)
+
+        iMessage = imessage.iMessage.create(
+            user=iMessageBot,
+            text=msg,
+            participants=constants.IMSG_NUMBERS,
+            effect=None,
+        )
+
+        await iMessageBot.send(iMessage)
 
 
-def run_trio_in_thread(async_fn, result_queue, *args, **kwargs):
+# Pypush uses trio for async handling, whilst discord.py uses asyncio.
+# To handle these incompatible async functions together, this function runs a trio function in a separate thread.
+def run_trio_in_thread(async_fn: typing.Callable, result_queue: queue.Queue, *args, **kwargs):
+    """
+    Runs an async function in a separate thread using trio.
+
+    async_fn: Async function to run in a separate thread. (typing.Callable)
+    result_queue: Queue to put the result of the async function in. (queue.Queue)
+    *args: Arguments to pass to async_fn.
+    **kwargs: Keyword arguments to pass to async_fn.
+
+    Returns: Thread object, and an Event object that is set when the thread is done.
+    """
+    done_event = Event()
+
     def trio_thread_target():
         try:
             result = trio.run(async_fn, *args, **kwargs)
+            if isinstance(result, Exception):
+                result_queue.put(result)
         except Exception as e:
             result_queue.put(e)
-        else:
-            result_queue.put(result)
+        finally:
+            done_event.set()
 
     thread = Thread(target=trio_thread_target)
     thread.start()
-    return thread
+    return thread, done_event
 
 
 @disc_client.event
 async def on_ready():
-    print("Logged in as {0.user}".format(disc_client))
+    print("Logged into Discord as {0.user}".format(disc_client))
+    print("Awaiting messages...")
 
 
 @disc_client.event
@@ -120,46 +162,29 @@ async def on_message(message):
     ]:
         await message.add_reaction("👀")
 
-        result_queue = asyncio.Queue()
-        thread = run_trio_in_thread(iMessageMain, result_queue)
+        iMessageText = f"Ping from {message.author.display_name}: {message.clean_content}"
+        print(f"Recieved Discord message:\n\t{iMessageText}")
+
+        result_queue = queue.Queue()
+        thread, done_event = run_trio_in_thread(
+            iMessageMain, result_queue, iMessageText
+        )
+
+        print("Forwarding to iMessage...")
+        while not done_event.is_set():
+            await asyncio.sleep(0.1)
+
         thread.join()
-        iMessageBot = await result_queue.get()
+        res = result_queue.get()
 
-        if isinstance(iMessageBot, Exception):
-            raise iMessageBot
-
-        send_thread = run_trio_in_thread(
-            iMessageBot.send,
-            args=(
-                imessage.iMessage.create(
-                    user=iMessageBot,
-                    text=f"Discord Message: {message.content}",
-                    participants=constants.IMSG_NUMBERS,
-                    effect=None,
-                )
-            ),
-            result_queue=result_queue,
-        )
-        send_thread.join()
-
-        res = await result_queue.get()
         if isinstance(res, Exception):
+            logging.exception("Error occurred in trio thread", exc_info=res)
             raise res
-
-        """
-        if message.attachments:
-            for a in message.attachments:
-                send_thread = Thread(
-                    target=send_message_in_trio_thread,
-                    args=(iMessageBot, a.url, constants.IMSG_NUMBERS),
-                )
-                send_thread.start()
-                send_thread.join()
-        """
-
-        await message.channel.send(
-            "You mentioned the Design role in our channel, so I forwarded your message to the team's iMessage group chat!"
-        )
+        else:
+            print("iMessage sent, sending response to channel.")
+            await message.channel.send(
+                "You mentioned the Design role in our channel, so I forwarded your message to the team's iMessage group chat!"
+            )
 
 
 if __name__ == "__main__":
