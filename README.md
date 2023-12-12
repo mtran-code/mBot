@@ -3,9 +3,9 @@
 Experimental Discord to iMessage forwarding bot using [pypush](https://github.com/JJTech0130/pypush)
 
 ## Setup
-1. Run `setup.sh` (or install dependencies manually with `requirements.txt`)
+1. Run `setup.sh` to install virtual environment (or install dependencies manually with `requirements.txt`)
 2. Create `constants.py` and `config.json`
-3. Run main.py
+3. Run `main.py`
 
 ## config.json
 This should be created by pypush or automatically generated once you run main.py and input your Apple credentials. See pypush repo for more info.
