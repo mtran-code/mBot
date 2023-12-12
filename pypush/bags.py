@@ -6,6 +6,8 @@ import requests
 logger = logging.getLogger("bags")
 
 OLD_APNS_BAG = None
+
+
 def apns_init_bag_old():
     global OLD_APNS_BAG
 
@@ -28,6 +30,8 @@ def apns_init_bag_old():
 
 # This is the same as the above, but the response has a signature which we unwrap
 APNS_BAG = None
+
+
 def apns_init_bag():
     global APNS_BAG
 
@@ -49,6 +53,8 @@ def apns_init_bag():
 
 
 IDS_BAG = None
+
+
 def ids_bag():
     global IDS_BAG
 
@@ -72,30 +78,33 @@ def ids_bag():
 
     return bag
 
+
 GRANDSLAM_BAG = None
+
+
 def grandslam_bag():
     global GRANDSLAM_BAG
 
     if GRANDSLAM_BAG is not None:
         return GRANDSLAM_BAG
-    
+
     import icloud.gsa as gsa
 
     r = requests.get(
-        "https://gsa.apple.com/grandslam/GsService2/lookup", verify=False,
-        headers = {
+        "https://gsa.apple.com/grandslam/GsService2/lookup",
+        verify=False,
+        headers={
             # We have to provide client info so that the server knows which version of the bag to give us
             "X-Mme-Client-Info": gsa.build_client(),
             "User-Agent": gsa.USER_AGENT,
-        }
+        },
     )
     if r.status_code != 200:
         raise Exception("Failed to get Grandslam bag: " + str(r.status_code))
-    
+
     GRANDSLAM_BAG = plistlib.loads(r.content)
 
-    return GRANDSLAM_BAG    
-
+    return GRANDSLAM_BAG
 
 
 if __name__ == "__main__":

@@ -8,15 +8,13 @@ from dataclasses import dataclass
 from hashlib import sha256
 from io import BytesIO
 from typing import Any
+from xml.etree import ElementTree
 
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
-from xml.etree import ElementTree
-
-from . import apns
-from . import ids
+from . import apns, ids
 
 logger = logging.getLogger("imessage")
 
@@ -51,7 +49,7 @@ class MMCSFile(AttachmentFile):
 
         logger.info(
             requests.get(
-                url=self.url, # type: ignore
+                url=self.url,  # type: ignore
                 headers={
                     "User-Agent": f"IMTransferAgent/900 CFNetwork/596.2.3 Darwin/12.2.0 (x86_64) (Macmini5,1)",
                     # "MMCS-Url": self.url,
@@ -80,8 +78,8 @@ class Attachment:
     def __init__(self, message_raw_content: dict, xml_element: ElementTree.Element):
         attrib = xml_element.attrib
 
-        self.name = attrib["name"] if "name" in attrib else None # type: ignore
-        self.mime_type = attrib["mime-type"] if "mime-type" in attrib else None # type: ignore
+        self.name = attrib["name"] if "name" in attrib else None  # type: ignore
+        self.mime_type = attrib["mime-type"] if "mime-type" in attrib else None  # type: ignore
 
         if "inline-attachment" in attrib:
             # just grab the inline attachment !
@@ -122,10 +120,11 @@ class Attachment:
             #             case "decryption-key":
             #                 versions[index].decryption_key = base64.b16decode(val)[1:]
 
-            self.versions = versions # type: ignore
+            self.versions = versions  # type: ignore
 
     def __repr__(self):
         return f'<Attachment name="{self.name}" type="{self.mime_type}">'
+
 
 @dataclass
 class Message:
@@ -156,8 +155,9 @@ class Message:
         raise NotImplementedError()
 
     def __str__(self):
-        #raise NotImplementedError()
+        # raise NotImplementedError()
         return f"[Message {self.sender}] '{self.text}'"
+
 
 @dataclass
 class SMSReflectedMessage(Message):
@@ -178,10 +178,10 @@ class SMSReflectedMessage(Message):
 
         return SMSReflectedMessage(
             text=message["mD"]["plain-body"],  # type: ignore
-            sender=sender, # type: ignore
-            participants=[re["id"] for re in message["re"]] + [sender], # type: ignore
-            id=uuid.UUID(message["mD"]["guid"]), # type: ignore
-            _raw=message, # type: ignore
+            sender=sender,  # type: ignore
+            participants=[re["id"] for re in message["re"]] + [sender],  # type: ignore
+            id=uuid.UUID(message["mD"]["guid"]),  # type: ignore
+            _raw=message,  # type: ignore
             _compressed=compressed,
         )
 
@@ -189,26 +189,26 @@ class SMSReflectedMessage(Message):
         #  {'re': [{'id': '+14155086773', 'uID': '4155086773', 'n': 'us'}], 'ic': 0, 'mD': {'handle': '+14155086773', 'guid': imessage.py:201
         #            '35694E24-E265-4D5C-8CA7-9499E35D0402', 'replyToGUID': '4F9BC76B-B09C-2A60-B312-9029D529706B', 'plain-body': 'Test sms', 'service':
         #            'SMS', 'sV': '1'}, 'fR': True, 'chat-style': 'im'}
-        #pass
+        # pass
         # Strip tel: from participants, making sure they are all phone numbers
-        #participants = [p.replace("tel:", "") for p in self.participants]
+        # participants = [p.replace("tel:", "") for p in self.participants]
 
         d = {
             "re": [{"id": p} for p in self.participants],
             "ic": 0,
             "mD": {
                 "handle": self.participants[0] if len(self.participants) == 1 else None,
-                #"handle": self.sender,
+                # "handle": self.sender,
                 "guid": str(self.id).upper(),
-                #"replyToGUID": "3B4B465F-F419-40FD-A8EF-94A110518E9F",
-                #"replyToGUID": str(self.id).upper(),
+                # "replyToGUID": "3B4B465F-F419-40FD-A8EF-94A110518E9F",
+                # "replyToGUID": str(self.id).upper(),
                 "xhtml": f"<html><body>{self.text}</body></html>",
                 "plain-body": self.text,
                 "service": "SMS",
                 "sV": "1",
             },
-            #"fR": True,
-            "chat-style": "im" if len(self.participants) == 1 else "chat"
+            # "fR": True,
+            "chat-style": "im" if len(self.participants) == 1 else "chat",
         }
 
         # Dump as plist
@@ -222,6 +222,7 @@ class SMSReflectedMessage(Message):
 
     def __str__(self):
         return f"[SMS {self.sender}] '{self.text}'"
+
 
 @dataclass
 class SMSIncomingMessage(Message):
@@ -241,16 +242,19 @@ class SMSIncomingMessage(Message):
         logger.debug(f"Decoding SMSIncomingMessage: {message}")
 
         return SMSIncomingMessage(
-            text=message["k"][0]["data"].decode(), # type: ignore
-            sender=message["h"], # Don't use sender parameter, that is the phone that forwarded the message # type: ignore
-            participants=[message["h"], message["co"]], # type: ignore
-            id=uuid.UUID(message["g"]), # type: ignore
-            _raw=message, # type: ignore
+            text=message["k"][0]["data"].decode(),  # type: ignore
+            sender=message[
+                "h"
+            ],  # Don't use sender parameter, that is the phone that forwarded the message # type: ignore
+            participants=[message["h"], message["co"]],  # type: ignore
+            id=uuid.UUID(message["g"]),  # type: ignore
+            _raw=message,  # type: ignore
             _compressed=compressed,
         )
 
     def __str__(self):
         return f"[SMS {self.sender}] '{self.text}'"
+
 
 @dataclass
 class SMSIncomingImage(Message):
@@ -259,7 +263,8 @@ class SMSIncomingImage(Message):
         """Create a `SMSIncomingImage` from raw message bytes"""
 
         # TODO: Implement this
-        return "SMSIncomingImage"     # type: ignore
+        return "SMSIncomingImage"  # type: ignore
+
 
 @dataclass
 class iMessage(Message):
@@ -270,10 +275,13 @@ class iMessage(Message):
     t: The sender token. Normally just a big thing of data/bytes, doesn't need to be decoded in any way
     U: the id of the message (uuid) as bytes
     """
+
     effect: str | None = None
 
     @staticmethod
-    def create(user: "iMessageUser", text: str, participants: list[str], effect: str | None) -> "iMessage":
+    def create(
+        user: "iMessageUser", text: str, participants: list[str], effect: str | None
+    ) -> "iMessage":
         """Creates a basic outgoing `iMessage` from the given text and participants"""
 
         sender = user.user.current_handle
@@ -285,7 +293,7 @@ class iMessage(Message):
             sender=sender,
             participants=participants,
             id=uuid.uuid4(),
-            effect=effect
+            effect=effect,
         )
 
     @staticmethod
@@ -304,14 +312,14 @@ class iMessage(Message):
         logger.debug(f"Decoding iMessage: {message}")
 
         return iMessage(
-            text=message["t"], # type: ignore
-            participants=message["p"], # type: ignore
-            sender=sender, # type: ignore
-            id=uuid.UUID(message["r"]) if "r" in message else None, # type: ignore
-            xml=message["x"] if "x" in message else None, # type: ignore
-            _raw=message, # type: ignore
+            text=message["t"],  # type: ignore
+            participants=message["p"],  # type: ignore
+            sender=sender,  # type: ignore
+            id=uuid.UUID(message["r"]) if "r" in message else None,  # type: ignore
+            xml=message["x"] if "x" in message else None,  # type: ignore
+            _raw=message,  # type: ignore
             _compressed=compressed,
-            effect=message["iid"] if "iid" in message else None, # type: ignore
+            effect=message["iid"] if "iid" in message else None,  # type: ignore
         )
 
     def to_raw(self) -> bytes:
@@ -343,6 +351,7 @@ class iMessage(Message):
     def __str__(self):
         return f"[iMessage {self.sender}] '{self.text}'"
 
+
 MESSAGE_TYPES = {
     100: ("com.apple.madrid", iMessage),
     101: ("com.apple.madrid", iMessage),
@@ -352,6 +361,7 @@ MESSAGE_TYPES = {
     144: ("com.apple.private.alloy.sms", SMSReflectedMessage),
 }
 
+
 def maybe_decompress(message: bytes) -> bytes:
     """Decompresses a message if it is compressed, otherwise returns the original message"""
     try:
@@ -359,6 +369,7 @@ def maybe_decompress(message: bytes) -> bytes:
     except:
         pass
     return message
+
 
 class iMessageUser:
     """Represents a logged in and connected iMessage user.
@@ -402,11 +413,13 @@ class iMessageUser:
         output.write(b"\x00\x41\x04")
         output.write(
             ids._helpers.parse_key(iden.signing_public_key)
-            .public_numbers().x.to_bytes(32, "big") # type: ignore
+            .public_numbers()
+            .x.to_bytes(32, "big")  # type: ignore
         )
         output.write(
             ids._helpers.parse_key(iden.signing_public_key)
-            .public_numbers().y.to_bytes(32, "big") # type: ignore
+            .public_numbers()
+            .y.to_bytes(32, "big")  # type: ignore
         )
 
         output.write(b"\x00\xAC")
@@ -414,7 +427,8 @@ class iMessageUser:
         output.write(b"\x02\x81\xA1")
         output.write(
             ids._helpers.parse_key(iden.encryption_public_key)
-            .public_numbers().n.to_bytes(161, "big") # type: ignore
+            .public_numbers()
+            .n.to_bytes(161, "big")  # type: ignore
         )
         output.write(b"\x02\x03\x01\x00\x01")
 
@@ -447,7 +461,7 @@ class iMessageUser:
 
         # Encrypt the AES key with the public key of the recipient
         recipient_key = ids._helpers.parse_key(key.encryption_public_key)
-        rsa_body = recipient_key.encrypt( # type: ignore
+        rsa_body = recipient_key.encrypt(  # type: ignore
             aes_key + encrypted[:100],
             padding.OAEP(
                 mgf=padding.MGF1(algorithm=hashes.SHA1()),
@@ -458,8 +472,8 @@ class iMessageUser:
 
         # Construct the payload
         body = rsa_body + encrypted[100:]
-        sig = ids._helpers.parse_key(self.user.encryption_identity.signing_key).sign( # type: ignore
-            body, ec.ECDSA(hashes.SHA1()) # type: ignore
+        sig = ids._helpers.parse_key(self.user.encryption_identity.signing_key).sign(  # type: ignore
+            body, ec.ECDSA(hashes.SHA1())  # type: ignore
         )
         payload = iMessageUser._construct_payload(body, sig)
 
@@ -470,8 +484,8 @@ class iMessageUser:
 
         body = BytesIO(payload[0])
         rsa_body = ids._helpers.parse_key(
-            self.user.encryption_identity.encryption_key # type: ignore
-        ).decrypt( # type: ignore
+            self.user.encryption_identity.encryption_key  # type: ignore
+        ).decrypt(  # type: ignore
             body.read(160),
             padding.OAEP(
                 mgf=padding.MGF1(algorithm=hashes.SHA1()),
@@ -502,10 +516,10 @@ class iMessageUser:
 
         try:
             # Verify the signature (will throw an exception if it fails)
-            sender_ec_key.verify( # type: ignore
+            sender_ec_key.verify(  # type: ignore
                 payload[1],
                 payload[0],
-                ec.ECDSA(hashes.SHA1()), # type: ignore
+                ec.ECDSA(hashes.SHA1()),  # type: ignore
             )
             return True
         except:
@@ -515,15 +529,29 @@ class iMessageUser:
         """
         Will return the next iMessage in the queue, or None if there are no messages
         """
-        body: dict[str, Any] = await self._receive_raw(list(MESSAGE_TYPES.keys()), [t[0] for t in MESSAGE_TYPES.values()])
+        body: dict[str, Any] = await self._receive_raw(
+            list(MESSAGE_TYPES.keys()), [t[0] for t in MESSAGE_TYPES.values()]
+        )
         t: type[Message] = MESSAGE_TYPES[body["c"]][1]
 
         if not "P" in body:
-            return Message(text="No payload", sender="System", participants=[], id=uuid.uuid4(), _raw=body)
+            return Message(
+                text="No payload",
+                sender="System",
+                participants=[],
+                id=uuid.uuid4(),
+                _raw=body,
+            )
 
         if not await self._verify_payload(body["P"], body["sP"], body["t"]):
-            return Message(text="Failed to verify payload", sender="System", participants=[], id=uuid.uuid4(), _raw=body)
-            #raise Exception("Failed to verify payload")
+            return Message(
+                text="Failed to verify payload",
+                sender="System",
+                participants=[],
+                id=uuid.uuid4(),
+                _raw=body,
+            )
+            # raise Exception("Failed to verify payload")
 
         logger.debug(f"Encrypted body : {body}")
 
@@ -531,13 +559,25 @@ class iMessageUser:
             decrypted: bytes = self._decrypt_payload(body["P"])
         except Exception as e:
             logger.error(f"Failed to decrypt message : {e}")
-            return Message(text="Failed to decrypt message", sender="System", participants=[], id=uuid.uuid4(), _raw=body)
+            return Message(
+                text="Failed to decrypt message",
+                sender="System",
+                participants=[],
+                id=uuid.uuid4(),
+                _raw=body,
+            )
 
         try:
             return t.from_raw(decrypted, body["sP"])
         except Exception as e:
             logger.error(f"Failed to parse message : {e}")
-            return Message(text="Failed to parse message", sender="System", participants=[], id=uuid.uuid4(), _raw=body)
+            return Message(
+                text="Failed to parse message",
+                sender="System",
+                participants=[],
+                id=uuid.uuid4(),
+                _raw=body,
+            )
 
     KEY_CACHE_HANDLE: str = ""
     KEY_CACHE: dict[bytes, dict[str, tuple[bytes, bytes]]] = {}
@@ -553,7 +593,7 @@ class iMessageUser:
             self.USER_CACHE = {}
 
         # Check to see if we have cached the keys for all of the participants
-        #if all([p in self.USER_CACHE for p in participants]):
+        # if all([p in self.USER_CACHE for p in participants]):
         #    return
         # TODO: This doesn't work since it doesn't check if they are cached for all topics
 
@@ -563,10 +603,14 @@ class iMessageUser:
         logger.debug(f"Lookup response : {lookup}")
         for key, participant in lookup.items():
             if len(participant["identities"]) == 0:
-                logger.warning(f"Participant {key} has no identities, this is probably not a real account")
+                logger.warning(
+                    f"Participant {key} has no identities, this is probably not a real account"
+                )
 
         for key, participant in lookup.items():
-            self.USER_CACHE[key] = [] # Clear so that we don't keep appending multiple times
+            self.USER_CACHE[
+                key
+            ] = []  # Clear so that we don't keep appending multiple times
 
             for identity in participant["identities"]:
                 if not "client-data" in identity:
@@ -657,12 +701,14 @@ class iMessageUser:
             participants,
             "com.apple.madrid",
             extra={
-                "eX": 0 if start else None, # expiration
-                "nr": 1 if start else None, # no response
+                "eX": 0 if start else None,  # expiration
+                "nr": 1 if start else None,  # no response
             },
         )
-        
-    async def _receive_raw(self, c: int | list[int], topics: str | list[str]) -> dict[str, Any]:
+
+    async def _receive_raw(
+        self, c: int | list[int], topics: str | list[str]
+    ) -> dict[str, Any]:
         def check(payload: apns.APNSPayload):
             # Check if the "c" key matches
             body = payload.fields_with_id(3)[0].value
@@ -690,14 +736,16 @@ class iMessageUser:
         Call repeatedly until it returns True
         """
 
-        act_message: dict[str, Any] = await self._receive_raw(145, "com.apple.private.alloy.sms")
+        act_message: dict[str, Any] = await self._receive_raw(
+            145, "com.apple.private.alloy.sms"
+        )
 
         logger.info(f"Received SMS activation message : {act_message}")
         # Decrypt the payload
         act_message_bytes: bytes = self._decrypt_payload(act_message["P"])
         act_message = plistlib.loads(maybe_decompress(act_message_bytes))
 
-        if act_message == {'wc': False, 'ar': True}:
+        if act_message == {"wc": False, "ar": True}:
             logger.info("SMS forwarding activated, sending response")
         else:
             logger.info("SMS forwarding de-activated, sending response")
@@ -706,9 +754,7 @@ class iMessageUser:
             147,
             [self.user.current_handle],
             "com.apple.private.alloy.sms",
-            extra={
-                "nr": 1
-            }
+            extra={"nr": 1},
         )
 
     async def send(self, message: Message):
@@ -719,7 +765,11 @@ class iMessageUser:
         else:
             raise Exception("Unknown message type")
 
-        send_to = message.participants if isinstance(message, iMessage) else [self.user.current_handle]
+        send_to = (
+            message.participants
+            if isinstance(message, iMessage)
+            else [self.user.current_handle]
+        )
 
         await self._cache_keys(send_to, topic)
 
@@ -730,8 +780,8 @@ class iMessageUser:
             message.to_raw(),
             message.id,
             {
-                "E": "pair", # TODO: Do we need the nr field for SMS?
-            }
+                "E": "pair",  # TODO: Do we need the nr field for SMS?
+            },
         )
 
         # Check for delivery
@@ -739,6 +789,7 @@ class iMessageUser:
         total = 0
 
         import time
+
         start = time.time()
 
         for p in send_to:
@@ -749,14 +800,18 @@ class iMessageUser:
 
         while count < total and time.time() - start < 2:
             resp: dict[str, Any] = await self._receive_raw(255, topic)
-            #if resp is None:
+            # if resp is None:
             #    continue
             count += 1
 
             logger.debug(f"Received response : {resp}")
 
             if resp["s"] != 0:
-                logger.warning(f"Message delivery to {base64.b64encode(resp['t']).decode()} failed : {resp['s']}")
+                logger.warning(
+                    f"Message delivery to {base64.b64encode(resp['t']).decode()} failed : {resp['s']}"
+                )
 
         if count < total:
-            logger.error(f"Unable to deliver message to all devices (got {count} of {total})")
+            logger.error(
+                f"Unable to deliver message to all devices (got {count} of {total})"
+            )

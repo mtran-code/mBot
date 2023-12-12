@@ -3,13 +3,10 @@ import logging
 from base64 import b64decode, b64encode
 from subprocess import PIPE, Popen
 
+import trio
 from rich.logging import RichHandler
 
-from . import apns
-from . import ids
-from . import imessage
-
-import trio
+from . import apns, ids, imessage
 
 logging.basicConfig(
     level=logging.NOTSET, format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
@@ -29,7 +26,7 @@ logging.getLogger("imessage").setLevel(logging.DEBUG)
 
 logging.captureWarnings(True)
 
-process = Popen(["git", "rev-parse", "HEAD"], stdout=PIPE) # type: ignore
+process = Popen(["git", "rev-parse", "HEAD"], stdout=PIPE)  # type: ignore
 (commit_hash, err) = process.communicate()
 exit_code = process.wait()
 commit_hash = commit_hash.decode().strip()
@@ -55,6 +52,7 @@ def safe_b64decode(s):
     except:
         return None
 
+
 async def main():
     token = CONFIG.get("push", {}).get("token")
     if token is not None:
@@ -63,7 +61,10 @@ async def main():
         token = b""
 
     push_creds = apns.PushCredentials(
-        CONFIG.get("push", {}).get("key", ""), CONFIG.get("push", {}).get("cert", ""), token)
+        CONFIG.get("push", {}).get("key", ""),
+        CONFIG.get("push", {}).get("cert", ""),
+        token,
+    )
 
     async with apns.APNSConnection.start(push_creds) as conn:
         await conn.set_state(1)
@@ -103,12 +104,17 @@ async def main():
             nursery.start_soon(input_task, im)
             nursery.start_soon(output_task, im)
 
+
 async def input_task(im: imessage.iMessageUser):
     current_effect: str | None = None
     current_participants: list[str] = []
 
     def is_cmd(cmd_str: str, name: str) -> bool:
-        return cmd_str in [name, name[0]] or cmd_str.startswith(f"{name} ") or cmd_str.startswith(f"{name[0]} ")
+        return (
+            cmd_str in [name, name[0]]
+            or cmd_str.startswith(f"{name} ")
+            or cmd_str.startswith(f"{name[0]} ")
+        )
 
     def get_parameters(cmd: str, err_msg: str) -> list[str] | None:
         sections: list[str] = cmd.split(" ")
@@ -131,7 +137,7 @@ async def input_task(im: imessage.iMessageUser):
                 return "tel:+1" + handle
             # otherwise just assume it's a full phone number
             return "tel:+" + handle
-        else: # assume it's an email
+        else:  # assume it's an email
             return "mailto:" + handle
 
     while True:
@@ -142,7 +148,9 @@ async def input_task(im: imessage.iMessageUser):
             print("help (h): show this message")
             print("quit (q): quit")
             print("filter (f) [recipient]: set the current chat")
-            print("note: recipient must start with tel: or mailto: and include the country code")
+            print(
+                "note: recipient must start with tel: or mailto: and include the country code"
+            )
             print("effect (e): adds an iMessage effect to the next sent message")
             print("handle [handle]: set the current handle (for sending messages with)")
             print("\\: escape commands (will be removed from message)")
@@ -161,7 +169,12 @@ async def input_task(im: imessage.iMessageUser):
                 current_participants = fixed_participants
         elif is_cmd(cmd, "handle"):
             handles: list[str] = im.user.handles
-            av_handles: str = "\n".join([f"\t{h}{' (current)' if h == im.user.current_handle else ''}" for h in handles])
+            av_handles: str = "\n".join(
+                [
+                    f"\t{h}{' (current)' if h == im.user.current_handle else ''}"
+                    for h in handles
+                ]
+            )
             err_str: str = f"handle [handle]\nAvailable handles:\n{av_handles}"
 
             if (input_handles := get_parameters(cmd, err_str)) is not None:
@@ -185,10 +198,13 @@ async def input_task(im: imessage.iMessageUser):
             if cmd.startswith("\\"):
                 cmd = cmd[1:]
 
-            await im.send(imessage.iMessage.create(im, cmd, current_participants, current_effect))
+            await im.send(
+                imessage.iMessage.create(im, cmd, current_participants, current_effect)
+            )
             current_effect = None
         else:
             print("No chat selected")
+
 
 async def output_task(im: imessage.iMessageUser):
     while True:

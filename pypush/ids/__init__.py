@@ -1,11 +1,11 @@
+import logging
 from base64 import b64encode
 from getpass import getpass
-import logging
+from typing import Any, Callable
 
 from .. import apns
-
 from . import _helpers, identity, profile, query
-from typing import Callable, Any
+
 
 class IDSUser:
     # Sets self.user_id and self._auth_token
@@ -27,7 +27,8 @@ class IDSUser:
     ):
         self.push_connection = push_connection
         self._push_keypair = _helpers.KeyPair(
-            self.push_connection.credentials.private_key, self.push_connection.credentials.cert
+            self.push_connection.credentials.private_key,
+            self.push_connection.credentials.cert,
         )
         # set the encryption_identity to a default randomized value so that
         # it's still valid if we can't pull it from the config
@@ -52,9 +53,10 @@ class IDSUser:
         )
         self.current_handle = self.handles[0]
 
-
     # Uses an existing authentication keypair
-    def restore_authentication(self, auth_keypair: _helpers.KeyPair, user_id: str, handles: list[str]):
+    def restore_authentication(
+        self, auth_keypair: _helpers.KeyPair, user_id: str, handles: list[str]
+    ):
         self._auth_keypair = auth_keypair
         self.user_id = user_id
         self.handles = handles
@@ -81,14 +83,13 @@ class IDSUser:
         self._id_keypair = id_keypair
 
     def auth_and_set_encryption_from_config(self, config: dict[str, dict[str, Any]]):
-
         auth = config.get("auth", {})
         if (
-			((key := auth.get("key")) is not None) and
-			((cert := auth.get("cert")) is not None) and
-			((user_id := auth.get("user_id")) is not None) and
-			((handles := auth.get("handles")) is not None)
-		):
+            ((key := auth.get("key")) is not None)
+            and ((cert := auth.get("cert")) is not None)
+            and ((user_id := auth.get("user_id")) is not None)
+            and ((handles := auth.get("handles")) is not None)
+        ):
             auth_keypair = _helpers.KeyPair(key, cert)
             self.restore_authentication(auth_keypair, user_id, handles)
         else:
@@ -101,10 +102,10 @@ class IDSUser:
         id: dict[str, str] = config.get("id", {})
 
         if (
-            (rsa_key := encryption.get("rsa_key")) and
-            (signing_key := encryption.get("ec_key")) and
-            (cert := id.get("cert")) and
-            (key := id.get("key"))
+            (rsa_key := encryption.get("rsa_key"))
+            and (signing_key := encryption.get("ec_key"))
+            and (cert := id.get("cert"))
+            and (key := id.get("key"))
         ):
             self.encryption_identity = identity.IDSIdentity(
                 encryption_key=rsa_key,
@@ -123,5 +124,6 @@ class IDSUser:
             self.register(vd)
 
     async def lookup(self, uris: list[str], topic: str = "com.apple.madrid") -> Any:
-        return await query.lookup(self.push_connection, self.current_handle, self._id_keypair, uris, topic)
-
+        return await query.lookup(
+            self.push_connection, self.current_handle, self._id_keypair, uris, topic
+        )
