@@ -1,0 +1,13 @@
+printer
+ipython
+asn1crypto
+websockets
+requests
+cryptography
+wheel
+srp
+pbkdf2
+unicorn
+rich
+trio
+discord
