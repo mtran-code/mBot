@@ -22,8 +22,8 @@ DESIGN_CHANNEL = [channel name]
 DESIGN_ROLE = [role name]
 
 # iMessage numbers to send messages to, a list of strings:
-#   - phone format "tel:+1416XXXXXXX"
-#   - email format "mailto:bot@mtran.ca"
+#   - phone format "tel:+1XXXXXXXXXX"
+#   - email format "mailto:bot@email.com"
 IMSG_NUMBERS = [
     "number1",
     "number2",
