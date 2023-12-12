@@ -1,10 +1,10 @@
 # mBot
 
-Experimental Discord to iMessage forwarding bot using [pypush](https://github.com/JJTech0130/pypush)
+Experimental Discord to iMessage forwarding bot using `async` branch of [pypush](https://github.com/JJTech0130/pypush)
 
 ## Setup
 1. Run `setup.sh` to install virtual environment (or install dependencies manually with `requirements.txt`)
-2. Create `constants.py` and `config.json`
+2. Create `constants.py` and `config.json` in repo root
 3. Run `main.py`
 
 ## config.json
