@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import queue
+import textwrap
 import typing
 from base64 import b64decode, b64encode
 from threading import Event, Thread
@@ -102,7 +103,6 @@ async def iMessageMain(msg: str):
         with open("config.json", "w") as f:
             json.dump(CONFIG, f, indent=4)
 
-
         print(f"Authenticating as: {user}.")
         iMessageBot = imessage.iMessageUser(conn, user)
 
@@ -113,12 +113,15 @@ async def iMessageMain(msg: str):
             effect=None,
         )
 
-        await iMessageBot.send(iMessage)
+        with trio.move_on_after(6):
+            await iMessageBot.send(iMessage)
 
 
 # Pypush uses trio for async handling, whilst discord.py uses asyncio.
-# To handle these incompatible async functions together, this function runs a trio function in a separate thread.
-def run_trio_in_thread(async_fn: typing.Callable, result_queue: queue.Queue, *args, **kwargs):
+# To handle these incompatible async calls together, this function runs trio in a separate thread.
+def run_trio_in_thread(
+    async_fn: typing.Callable, result_queue: queue.Queue, *args, **kwargs
+):
     """
     Runs an async function in a separate thread using trio.
 
@@ -134,8 +137,7 @@ def run_trio_in_thread(async_fn: typing.Callable, result_queue: queue.Queue, *ar
     def trio_thread_target():
         try:
             result = trio.run(async_fn, *args, **kwargs)
-            if isinstance(result, Exception):
-                result_queue.put(result)
+            result_queue.put(result)
         except Exception as e:
             result_queue.put(e)
         finally:
@@ -143,6 +145,7 @@ def run_trio_in_thread(async_fn: typing.Callable, result_queue: queue.Queue, *ar
 
     thread = Thread(target=trio_thread_target)
     thread.start()
+
     return thread, done_event
 
 
@@ -162,17 +165,20 @@ async def on_message(message):
     ]:
         await message.add_reaction("👀")
 
-        iMessageText = f"Ping from {message.author.display_name}: {message.clean_content}"
-        print(f"Recieved Discord message:\n\t{iMessageText}")
+        iMessageText = (
+            f"Discord ping from {message.author.display_name}:\n{message.clean_content}"
+        )
+        print(
+            f"Processing message:\n{textwrap.indent(text=iMessageText, prefix='    ')}"
+        )
 
         result_queue = queue.Queue()
         thread, done_event = run_trio_in_thread(
             iMessageMain, result_queue, iMessageText
         )
 
-        print("Forwarding to iMessage...")
         while not done_event.is_set():
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(1)
 
         thread.join()
         res = result_queue.get()
@@ -185,6 +191,8 @@ async def on_message(message):
             await message.channel.send(
                 "You mentioned the Design role in our channel, so I forwarded your message to the team's iMessage group chat!"
             )
+
+        print("Done.\n")
 
 
 if __name__ == "__main__":

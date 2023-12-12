@@ -15,8 +15,7 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 
-from . import albert
-from . import bags
+from . import albert, bags
 
 logger = logging.getLogger("apns")
 
@@ -100,7 +99,9 @@ class APNSConnection:
                 print(f"Can't send payload: {e}")
                 return
 
-    async def _receive(self, id: int, filter: Callable[[APNSPayload], bool] | None = None):
+    async def _receive(
+        self, id: int, filter: Callable[[APNSPayload], bool] | None = None
+    ):
         """
         Waits for a payload with the given id to be added to the queue, then returns it.
         If filter is not None, it will be called with the payload as an argument, and if it returns False,
@@ -123,7 +124,7 @@ class APNSConnection:
             logger.debug(f"Woken by event, checking for {id}")
             # Check if the new payload matches the id
             if len(self._incoming_queue) == 0:
-                continue # all payloads have been removed by someone else
+                continue  # all payloads have been removed by someone else
             if self._incoming_queue[-1].id != id:
                 continue
             if filter is not None:
@@ -271,6 +272,7 @@ class APNSConnection:
         return new_token
 
     old_topics = []
+
     async def filter(self, topics: list[str]):
         """Sends the APNs filter message"""
         if topics == self.old_topics:
@@ -309,7 +311,9 @@ class APNSConnection:
 
         # TODO: Check ACK code
 
-    async def expect_notification(self, topics: str | list[str], filter: Callable | None = None):
+    async def expect_notification(
+        self, topics: str | list[str], filter: Callable | None = None
+    ):
         """Waits for a notification to be received, and acks it"""
 
         if isinstance(topics, list):
@@ -376,14 +380,15 @@ class APNSField:
 
 
 async def receive_exact(stream: trio.abc.Stream, amount: int):
-        """Reads exactly the given amount of bytes from the given stream"""
-        buffer = b""
-        while len(buffer) < amount:
-            # Check for EOF
-            if (b := await stream.receive_some(1)) == b"":
-                return None # None is how EOF's were represented in the old code, so we'll keep it that way
-            buffer += b
-        return buffer
+    """Reads exactly the given amount of bytes from the given stream"""
+    buffer = b""
+    while len(buffer) < amount:
+        # Check for EOF
+        if (b := await stream.receive_some(1)) == b"":
+            return None  # None is how EOF's were represented in the old code, so we'll keep it that way
+        buffer += b
+    return buffer
+
 
 @dataclass
 class APNSPayload:
